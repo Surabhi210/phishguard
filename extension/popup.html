@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    :root {
+      --bg: #080C16;
+      --surface: #0F1623;
+      --surface2: #161F30;
+      --border: #1E2D45;
+      --blue: #4F9EF8;
+      --red: #F04747;
+      --green: #23D18B;
+      --amber: #F0A832;
+      --text: #D8E4F0;
+      --muted: #8493A8;
+    }
+    body {
+      width: 320px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 10px;
+    }
+    .title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .sub {
+      font-size: 0.65rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      display: block;
+      margin-bottom: 5px;
+    }
+    textarea {
+      width: 100%;
+      height: 80px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 8px;
+      box-sizing: border-box;
+      resize: none;
+      outline: none;
+      font-size: 0.8rem;
+      margin-bottom: 10px;
+    }
+    textarea:focus {
+      border-color: var(--blue);
+    }
+    .btn {
+      width: 100%;
+      background: var(--blue);
+      color: #080C16;
+      border: none;
+      padding: 10px;
+      border-radius: 6px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 0.8rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.2s;
+    }
+    .btn:hover {
+      background: #74b8ff;
+    }
+    .btn-secondary {
+      background: var(--surface2);
+      color: var(--muted);
+      margin-top: 6px;
+    }
+    .btn-secondary:hover {
+      color: var(--text);
+    }
+    .results {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+      display: none;
+    }
+    .verdict-card {
+      padding: 10px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .verdict-card.phish {
+      background: rgba(240, 71, 71, 0.1);
+      border: 1px solid rgba(240, 71, 71, 0.2);
+      color: var(--red);
+    }
+    .verdict-card.safe {
+      background: rgba(35, 209, 139, 0.1);
+      border: 1px solid rgba(35, 209, 139, 0.2);
+      color: var(--green);
+    }
+    .verdict-title {
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+    .score-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--surface2);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+    }
+    .score-val {
+      font-weight: 700;
+      font-size: 1.1rem;
+    }
+    .error {
+      color: var(--amber);
+      background: rgba(240, 168, 50, 0.1);
+      border: 1px solid rgba(240, 168, 50, 0.25);
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      margin-top: 10px;
+      display: none;
+    }
+    .spinner {
+      width: 12px;
+      height: 12px;
+      border: 2px solid rgba(8, 12, 22, 0.4);
+      border-top-color: #080C16;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span style="font-size: 1.4rem;">🛡️</span>
+    <div>
+      <div class="title">PhishGuard Scan</div>
+      <div class="sub">Extension Shield</div>
+    </div>
+  </div>
+
+  <label>Email Body or Text Selection</label>
+  <textarea id="textInput" placeholder="Select text on the webpage, or paste email body content here..."></textarea>
+
+  <button class="btn" id="analyzeBtn">
+    <span id="btnLabel">🔍 Analyze Content</span>
+    <div class="spinner" id="spinner"></div>
+  </button>
+  <button class="btn btn-secondary" id="grabBtn">📋 Grab Selected Text</button>
+
+  <div class="error" id="errorBox"></div>
+
+  <div class="results" id="resultsBox">
+    <div class="verdict-card" id="verdictCard">
+      <span id="verdictEmoji" style="font-size: 1.4rem;">🚨</span>
+      <div>
+        <div class="verdict-title" id="verdictTitle">Phishing Email</div>
+        <div style="font-size: 0.7rem; opacity: 0.85;" id="verdictSubtitle">High threat detection.</div>
+      </div>
+    </div>
+
+    <div class="score-row">
+      <span>Threat Score:</span>
+      <span class="score-val" id="scoreVal">85/100</span>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

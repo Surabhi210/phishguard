@@ -247,6 +247,92 @@ header {
   box-shadow: 0 0 0 3px rgba(79,158,248,.12);
 }
 
+/* Dropzone & File Preview styles */
+.dropzone {
+  border: 2px dashed var(--border2);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--transition), background-color var(--transition);
+}
+.dropzone:hover, .dropzone.dragover {
+  border-color: var(--blue);
+  background: rgba(79, 158, 248, 0.04);
+}
+.dropzone-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.dropzone-icon {
+  font-size: 1.8rem;
+}
+.dropzone-text {
+  font-family: var(--mono);
+  font-size: .78rem;
+  color: var(--text2);
+}
+.dropzone-highlight {
+  color: var(--blue);
+  font-weight: 600;
+}
+.dropzone-sub {
+  font-family: var(--mono);
+  font-size: .62rem;
+  color: var(--muted2);
+}
+
+.file-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin-top: 8px;
+  animation: fadeIn var(--transition) ease;
+}
+.file-icon {
+  font-size: 1.4rem;
+  color: var(--blue);
+}
+.file-details {
+  flex: 1;
+  min-width: 0;
+}
+.file-name {
+  font-family: var(--mono);
+  font-size: .78rem;
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-size {
+  font-family: var(--mono);
+  font-size: .68rem;
+  color: var(--muted);
+}
+.file-clear {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: .9rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all var(--transition);
+}
+.file-clear:hover {
+  color: var(--red);
+  background: var(--red-glow);
+}
+
 /* ══════════════════════════════════════
    ACTIONS
 ══════════════════════════════════════ */
@@ -557,6 +643,27 @@ footer {
       <label>Email Body</label>
       <textarea id="body" rows="7" placeholder="Paste the full email body here…"></textarea>
     </div>
+    <div class="field">
+      <label>Attachment (optional)</label>
+      <div class="dropzone" id="dropzone">
+        <input type="file" id="attachmentInput" style="display:none;" />
+        <div class="dropzone-inner">
+          <span class="dropzone-icon">📁</span>
+          <div class="dropzone-text">
+            <span class="dropzone-highlight">Click to upload</span> or drag and drop
+          </div>
+          <div class="dropzone-sub">Max size 32MB</div>
+        </div>
+      </div>
+      <div class="file-preview" id="filePreview" style="display:none;">
+        <span class="file-icon">📄</span>
+        <div class="file-details">
+          <div class="file-name" id="fileName">file.pdf</div>
+          <div class="file-size" id="fileSize">0 KB</div>
+        </div>
+        <button class="file-clear" onclick="clearAttachment(event)" type="button">✕</button>
+      </div>
+    </div>
   </div>
 
   <div class="actions" style="margin-top:16px;">
@@ -595,6 +702,75 @@ const SAMPLES = {
   },
 };
 
+/* ── Attachment Drag & Drop Logic ── */
+let selectedFile = null;
+const dropzone = document.getElementById('dropzone');
+const attachmentInput = document.getElementById('attachmentInput');
+const filePreview = document.getElementById('filePreview');
+const fileName = document.getElementById('fileName');
+const fileSize = document.getElementById('fileSize');
+
+// Trigger file input click
+dropzone.addEventListener('click', () => {
+  attachmentInput.click();
+});
+
+// File input selection
+attachmentInput.addEventListener('change', (e) => {
+  if (e.target.files.length > 0) {
+    handleFile(e.target.files[0]);
+  }
+});
+
+// Drag and drop handlers
+dropzone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  dropzone.classList.add('dragover');
+});
+
+dropzone.addEventListener('dragleave', () => {
+  dropzone.classList.remove('dragover');
+});
+
+dropzone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropzone.classList.remove('dragover');
+  if (e.dataTransfer.files.length > 0) {
+    handleFile(e.dataTransfer.files[0]);
+  }
+});
+
+function handleFile(file) {
+  if (file.size > 32 * 1024 * 1024) {
+    alert('File size exceeds the 32MB limit.');
+    return;
+  }
+  selectedFile = file;
+  fileName.textContent = file.name;
+  fileSize.textContent = formatBytes(file.size);
+  dropzone.style.display = 'none';
+  filePreview.style.display = 'flex';
+}
+
+function clearAttachment(e) {
+  if (e) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
+  selectedFile = null;
+  attachmentInput.value = '';
+  dropzone.style.display = 'block';
+  filePreview.style.display = 'none';
+}
+
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
 /* ── Sample loader ── */
 document.querySelectorAll('.sample-btn[data-sample]').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -612,6 +788,7 @@ document.querySelectorAll('.sample-btn[data-sample]').forEach(btn => {
 /* ── Clear ── */
 function clearAll() {
   ['sender','subject','body'].forEach(id => document.getElementById(id).value = '');
+  clearAttachment();
   document.getElementById('results').style.display = 'none';
   document.getElementById('results').innerHTML = '';
   document.querySelectorAll('.sample-btn').forEach(b => b.classList.remove('active'));
@@ -651,6 +828,10 @@ function buildGauge(score) {
   </svg>`;
 }
 
+/* ── Render helpers ── */
+const tag = (text, cls) => `<span class="tag ${cls}">${text}</span>`;
+const sec = (label, html) => html ? `<div class="section-label" style="margin-top:20px;">${label}</div>${html}` : '';
+
 /* ── Render results ── */
 function render(d) {
   const isPhish = d.prediction === 1;
@@ -658,26 +839,80 @@ function render(d) {
   const phishC  = d.phish_prob > 60 ? '#F04747' : d.phish_prob > 35 ? '#F0A832' : '#23D18B';
   const safeC   = d.safe_prob  > 60 ? '#23D18B' : '#8493A8';
 
-  /* keywords */
+  const getBadgeColor = status => status === 'Malicious' ? 'tag-red' : (status === 'Safe' ? 'tag-green' : 'tag-amber');
+  const getStatusText = status => status === 'Malicious' ? 'Malicious' : (status === 'Safe' ? 'Safe' : status);
+
+  // Keywords
   const kwHtml = d.keywords.length
-    ? d.keywords.map(k => `<span class="tag tag-amber">⚑ ${k}</span>`).join('')
-    : `<span class="tag tag-green">✓ No suspicious keywords found</span>`;
+    ? d.keywords.map(k => tag(`⚑ ${k}`, 'tag-amber')).join('')
+    : tag('✓ No suspicious keywords found', 'tag-green');
 
-  /* URLs */
-  const urlHtml = d.urls.length
-    ? `<div class="section-label" style="margin-top:20px;">🔗 URLs Detected</div>
-       <div class="tag-cloud">${d.urls.map(u =>
-         `<span class="tag tag-red" title="${u}">${u.length > 52 ? u.slice(0,52)+'…' : u}</span>`
-       ).join('')}</div>`
-    : '';
+  // URLs
+  let urlHtml = '';
+  if (d.virus_total_urls && d.virus_total_urls.length > 0) {
+    const list = d.virus_total_urls.map(vt => `
+      <div style="background:var(--surface2); padding:10px 14px; border-radius:8px; border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <span style="font-family:var(--mono); font-size:.78rem; word-break:break-all; flex:1; min-width:200px; color:var(--text);">${vt.url}</span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          ${tag(getStatusText(vt.status), getBadgeColor(vt.status))}
+          <span style="font-family:var(--mono); font-size:.65rem; color:var(--muted);">(Malicious: ${vt.malicious}, Harmless: ${vt.harmless})</span>
+        </div>
+      </div>
+    `).join('');
+    urlHtml = sec('🛡️ VirusTotal URL Analysis', `<div style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">${list}</div>`);
+  } else if (d.urls.length > 0) {
+    urlHtml = sec('🔗 URLs Detected', `<div class="tag-cloud">${d.urls.map(u => tag(u.length > 52 ? u.slice(0,52)+'…' : u, 'tag-red')).join('')}</div>`);
+  }
 
-  /* spoofed */
+  // Attachment
+  let attachmentHtml = '';
+  if (d.virus_total_attachment) {
+    const att = d.virus_total_attachment;
+    let details = att.status !== 'No API Key' && att.status !== 'Unknown' && att.status !== 'Queued' && att.status !== 'Error' 
+      ? `(Malicious: ${att.malicious}, Harmless: ${att.harmless})` : '';
+    attachmentHtml = sec('📎 Attachment Analysis', `
+      <div style="background:var(--surface2); padding:14px 18px; border-radius:8px; border:1px solid var(--border); margin-top:8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:8px;">
+          <div>
+            <div style="font-family:var(--mono); font-size:.84rem; font-weight:600; color:var(--text);">${att.filename}</div>
+            <div style="font-family:var(--mono); font-size:.68rem; color:var(--muted);">${formatBytes(att.size)} | Hash: ${att.hash.slice(0, 16)}...</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            ${tag(getStatusText(att.status), getBadgeColor(att.status))}
+            <span style="font-family:var(--mono); font-size:.65rem; color:var(--muted);">${details}</span>
+          </div>
+        </div>
+        ${att.type_description ? `<div style="font-family:var(--mono); font-size:.72rem; color:var(--text2);">File Type: ${att.type_description}</div>` : ''}
+        ${att.message ? `<div style="font-family:var(--mono); font-size:.72rem; color:var(--amber); margin-top:4px;">ℹ️ ${att.message}</div>` : ''}
+      </div>
+    `);
+  }
+
+  // Sender Reputation
+  let senderHtml = '';
+  if (d.sender_reputation) {
+    const rep = d.sender_reputation;
+    let details = rep.status !== 'No API Key' && rep.status !== 'Unknown' && rep.status !== 'Error' 
+      ? `(Malicious: ${rep.malicious}, Harmless: ${rep.harmless})` : '';
+    senderHtml = sec('👤 Sender Reputation & Domain Analysis', `
+      <div style="background:var(--surface2); padding:14px 18px; border-radius:8px; border:1px solid var(--border); margin-top:8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+          <div>
+            <div style="font-family:var(--mono); font-size:.84rem; font-weight:600; color:var(--text);">${rep.domain}</div>
+            <div style="font-family:var(--mono); font-size:.68rem; color:var(--muted);">Domain age and threat history verified via VirusTotal.</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            ${tag(getStatusText(rep.status), getBadgeColor(rep.status))}
+            <span style="font-family:var(--mono); font-size:.65rem; color:var(--muted);">${details}</span>
+          </div>
+        </div>
+        ${rep.message ? `<div style="font-family:var(--mono); font-size:.72rem; color:var(--amber); margin-top:4px;">ℹ️ ${rep.message}</div>` : ''}
+      </div>
+    `);
+  }
+
   const spfHtml = d.spoofed.length
-    ? `<div class="section-label" style="margin-top:20px;">🎭 Domain Spoofing Signals</div>
-       <div class="tag-cloud">${d.spoofed.map(s =>
-         `<span class="tag tag-red">⚠ "${s}"</span>`
-       ).join('')}</div>`
-    : '';
+    ? sec('🎭 Domain Spoofing Signals', `<div class="tag-cloud">${d.spoofed.map(s => tag(`⚠ "${s}"`, 'tag-red')).join('')}</div>`) : '';
 
   const explain = isPhish
     ? "The model identified patterns common to phishing emails — urgent language, account/security terminology, suspicious URLs, or credential-harvesting bait. TF-IDF weighted these signals heavily against its learned decision boundary."
@@ -686,19 +921,15 @@ function render(d) {
   return `
     <div class="section-label">📊 Scan Result</div>
 
-    <!-- Verdict -->
     <div class="verdict-card ${isPhish ? 'phish' : 'safe'}">
       <div class="verdict-emoji">${isPhish ? '🚨' : '✅'}</div>
       <div>
         <div class="verdict-label">Verdict</div>
         <div class="verdict-text ${isPhish ? 'red' : 'green'}">${isPhish ? 'Phishing Email' : 'Looks Safe'}</div>
-        <div class="verdict-hint">${isPhish
-          ? 'High-confidence threat. Do not click any links or reply.'
-          : 'No strong phishing signals detected. Stay cautious regardless.'}</div>
+        <div class="verdict-hint">${isPhish ? 'High-confidence threat. Do not click any links or reply.' : 'No strong phishing signals detected. Stay cautious regardless.'}</div>
       </div>
     </div>
 
-    <!-- Gauge -->
     <div class="gauge-row" style="margin-top:12px;">
       <div class="gauge-wrap">${buildGauge(d.threat_score)}</div>
       <div class="gauge-info">
@@ -708,36 +939,20 @@ function render(d) {
       </div>
     </div>
 
-    <!-- Stats -->
     <div class="stats-grid" style="margin-top:12px;">
-      <div class="stat-cell">
-        <div class="stat-label">Phishing Confidence</div>
-        <div class="stat-val" style="color:${phishC};">${d.phish_prob}%</div>
-      </div>
-      <div class="stat-cell">
-        <div class="stat-label">Safe Confidence</div>
-        <div class="stat-val" style="color:${safeC};">${d.safe_prob}%</div>
-      </div>
-      <div class="stat-cell">
-        <div class="stat-label">Suspicious Keywords</div>
-        <div class="stat-val" style="color:${d.keywords.length ? '#F0A832' : '#23D18B'};">${d.keywords.length}</div>
-      </div>
-      <div class="stat-cell">
-        <div class="stat-label">URLs Detected</div>
-        <div class="stat-val" style="color:${d.urls.length ? '#F04747' : '#23D18B'};">${d.urls.length}</div>
-      </div>
+      <div class="stat-cell"><div class="stat-label">Phishing Confidence</div><div class="stat-val" style="color:${phishC};">${d.phish_prob}%</div></div>
+      <div class="stat-cell"><div class="stat-label">Safe Confidence</div><div class="stat-val" style="color:${safeC};">${d.safe_prob}%</div></div>
+      <div class="stat-cell"><div class="stat-label">Suspicious Keywords</div><div class="stat-val" style="color:${d.keywords.length ? '#F0A832' : '#23D18B'};">${d.keywords.length}</div></div>
+      <div class="stat-cell"><div class="stat-label">URLs Detected</div><div class="stat-val" style="color:${d.urls.length ? '#F04747' : '#23D18B'};">${d.urls.length}</div></div>
     </div>
 
-    <!-- Keywords -->
-    <div class="section-label" style="margin-top:20px;">🧠 Suspicious Indicators</div>
-    <div class="tag-cloud">${kwHtml}</div>
-
+    ${sec('🧠 Suspicious Indicators', `<div class="tag-cloud">${kwHtml}</div>`)}
+    ${senderHtml}
     ${urlHtml}
+    ${attachmentHtml}
     ${spfHtml}
 
-    <!-- Explanation -->
-    <div class="section-label" style="margin-top:20px;">📝 Why this verdict?</div>
-    <div class="explain-box">${explain}</div>
+    ${sec('📝 Why this verdict?', `<div class="explain-box">${explain}</div>`)}
   `;
 }
 
@@ -747,10 +962,10 @@ async function analyze() {
   const subject = document.getElementById('subject').value.trim();
   const body    = document.getElementById('body').value.trim();
 
-  if (!sender && !subject && !body) {
+  if (!sender && !subject && !body && !selectedFile) {
     document.getElementById('results').style.display = 'block';
     document.getElementById('results').innerHTML =
-      `<div class="error-card">⚠ No input detected — fill at least one field.</div>`;
+      `<div class="error-card">⚠ No input detected — fill at least one field or upload an attachment.</div>`;
     return;
   }
 
@@ -760,12 +975,18 @@ async function analyze() {
   document.getElementById('spinner').style.display = 'block';
   btn.disabled = true;
 
-try {
-    // Update the URL from '/analyze' to the full local Flask address:
+  try {
+    const formData = new FormData();
+    formData.append('sender', sender);
+    formData.append('subject', subject);
+    formData.append('body', body);
+    if (selectedFile) {
+      formData.append('attachment', selectedFile);
+    }
+
     const res  = await fetch('http://127.0.0.1:5000/analyze', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sender, subject, body })
+      body: formData
     });
     const data = await res.json();
 
