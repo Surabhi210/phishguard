@@ -251,7 +251,7 @@ def analyze():
             threat_score += 50
             prediction = 1  # Force prediction if VT reports high-confidence malicious indicators
 
-        threat_score  = min(int(round(threat_score)), 100)
+        threat_score  = max(5, min(int(round(threat_score)), 95))
 
         return jsonify({
             "prediction": prediction,
