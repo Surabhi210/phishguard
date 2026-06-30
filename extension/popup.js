@@ -151,8 +151,12 @@ function renderResults(data) {
     const rep = data.sender_reputation;
     if (rep.status === 'Malicious') {
       subtitleText = `Sender domain [${rep.domain}] is malicious!`;
+    } else if (rep.status === 'Safe') {
+      subtitleText = `Sender domain is verified: Safe.`;
+    } else if (rep.status === 'Unknown' || rep.status === 'Unknown Domain') {
+      subtitleText = `No sender reputation data available for [${rep.domain}].`;
     } else {
-      subtitleText = `Sender domain is verified: ${rep.status}.`;
+      subtitleText = `Sender domain status: ${rep.status}.`;
     }
   } else {
     subtitleText = isPhish ? 'High threat signals detected.' : 'No strong threat patterns found.';

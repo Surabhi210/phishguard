@@ -82,12 +82,18 @@ def scan_url_virustotal(url):
     res = query_vt(f"urls/{url_id}")
     if not res:
         query_vt("urls", method="POST", data={"url": url})
-        return {"status": "Queued", "malicious": 0, "harmless": 0}
+        return {"status": "Unknown URL", "malicious": 0, "harmless": 0}
     stats = res["data"]["attributes"]["last_analysis_stats"]
+    malicious = stats.get("malicious", 0)
+    harmless = stats.get("harmless", 0)
+    if malicious == 0 and harmless == 0:
+        status = "Unknown URL"
+    else:
+        status = "Malicious" if malicious > 0 else "Safe"
     return {
-        "status": "Malicious" if stats.get("malicious", 0) > 0 else "Safe",
-        "malicious": stats.get("malicious", 0),
-        "harmless": stats.get("harmless", 0)
+        "status": status,
+        "malicious": malicious,
+        "harmless": harmless
     }
 
 def scan_file_hash_virustotal(sha256, filename, file_size, file_bytes):
@@ -111,13 +117,19 @@ def scan_file_hash_virustotal(sha256, filename, file_size, file_bytes):
 def check_domain_reputation(domain):
     res = query_vt(f"domains/{domain}")
     if not res:
-        return {"status": "Unknown", "domain": domain, "malicious": 0, "harmless": 0}
+        return {"status": "Unknown Domain", "domain": domain, "malicious": 0, "harmless": 0}
     stats = res["data"]["attributes"]["last_analysis_stats"]
+    malicious = stats.get("malicious", 0)
+    harmless = stats.get("harmless", 0)
+    if malicious == 0 and harmless == 0:
+        status = "Unknown Domain"
+    else:
+        status = "Malicious" if malicious > 0 else "Safe"
     return {
-        "status": "Malicious" if stats.get("malicious", 0) > 0 else "Safe",
+        "status": status,
         "domain": domain,
-        "malicious": stats.get("malicious", 0),
-        "harmless": stats.get("harmless", 0)
+        "malicious": malicious,
+        "harmless": harmless
     }
 
 @app.route("/")
