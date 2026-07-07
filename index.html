@@ -831,6 +831,7 @@ function buildGauge(score) {
 /* ── Render helpers ── */
 const tag = (text, cls) => `<span class="tag ${cls}">${text}</span>`;
 const sec = (label, html) => html ? `<div class="section-label" style="margin-top:20px;">${label}</div>${html}` : '';
+const getVtDetails = x => (x.status === 'Malicious' || x.status === 'Safe') ? `(Malicious: ${x.malicious}, Harmless: ${x.harmless})` : '';
 
 /* ── Render results ── */
 function render(d) {
@@ -840,7 +841,6 @@ function render(d) {
   const safeC   = d.safe_prob  > 60 ? '#23D18B' : '#8493A8';
 
   const getBadgeColor = status => status === 'Malicious' ? 'tag-red' : (status === 'Safe' ? 'tag-green' : 'tag-amber');
-  const getStatusText = status => status === 'Malicious' ? 'Malicious' : (status === 'Safe' ? 'Safe' : status);
 
   // Keywords
   const kwHtml = d.keywords.length
@@ -851,14 +851,13 @@ function render(d) {
   let urlHtml = '';
   if (d.virus_total_urls && d.virus_total_urls.length > 0) {
     const list = d.virus_total_urls.map(vt => {
-      const urlDetails = vt.status !== 'No API Key' && vt.status !== 'Unknown' && vt.status !== 'Unknown URL' && vt.status !== 'Queued' && vt.status !== 'Error'
-        ? `(Malicious: ${vt.malicious}, Harmless: ${vt.harmless})` : '';
+      const details = getVtDetails(vt);
       return `
       <div style="background:var(--surface2); padding:10px 14px; border-radius:8px; border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
         <span style="font-family:var(--mono); font-size:.78rem; word-break:break-all; flex:1; min-width:200px; color:var(--text);">${vt.url}</span>
         <div style="display:flex; align-items:center; gap:8px;">
-          ${tag(getStatusText(vt.status), getBadgeColor(vt.status))}
-          ${urlDetails ? `<span style="font-family:var(--mono); font-size:.65rem; color:var(--muted);">${urlDetails}</span>` : ''}
+          ${tag(vt.status, getBadgeColor(vt.status))}
+          ${details ? `<span style="font-family:var(--mono); font-size:.65rem; color:var(--muted);">${details}</span>` : ''}
         </div>
       </div>
       `;
@@ -872,8 +871,7 @@ function render(d) {
   let attachmentHtml = '';
   if (d.virus_total_attachment) {
     const att = d.virus_total_attachment;
-    let details = att.status !== 'No API Key' && att.status !== 'Unknown' && att.status !== 'Queued' && att.status !== 'Error' 
-      ? `(Malicious: ${att.malicious}, Harmless: ${att.harmless})` : '';
+    const details = getVtDetails(att);
     attachmentHtml = sec('📎 Attachment Analysis', `
       <div style="background:var(--surface2); padding:14px 18px; border-radius:8px; border:1px solid var(--border); margin-top:8px;">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:8px;">
@@ -882,7 +880,7 @@ function render(d) {
             <div style="font-family:var(--mono); font-size:.68rem; color:var(--muted);">${formatBytes(att.size)} | Hash: ${att.hash.slice(0, 16)}...</div>
           </div>
           <div style="display:flex; align-items:center; gap:8px;">
-            ${tag(getStatusText(att.status), getBadgeColor(att.status))}
+            ${tag(att.status, getBadgeColor(att.status))}
             <span style="font-family:var(--mono); font-size:.65rem; color:var(--muted);">${details}</span>
           </div>
         </div>
@@ -896,8 +894,7 @@ function render(d) {
   let senderHtml = '';
   if (d.sender_reputation) {
     const rep = d.sender_reputation;
-    let details = rep.status !== 'No API Key' && rep.status !== 'Unknown' && rep.status !== 'Unknown Domain' && rep.status !== 'Error'
-      ? `(Malicious: ${rep.malicious}, Harmless: ${rep.harmless})` : '';
+    const details = getVtDetails(rep);
     senderHtml = sec('👤 Sender Reputation & Domain Analysis', `
       <div style="background:var(--surface2); padding:14px 18px; border-radius:8px; border:1px solid var(--border); margin-top:8px;">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
@@ -906,7 +903,7 @@ function render(d) {
             <div style="font-family:var(--mono); font-size:.68rem; color:var(--muted);">Domain age and threat history verified via VirusTotal.</div>
           </div>
           <div style="display:flex; align-items:center; gap:8px;">
-            ${tag(getStatusText(rep.status), getBadgeColor(rep.status))}
+            ${tag(rep.status, getBadgeColor(rep.status))}
             <span style="font-family:var(--mono); font-size:.65rem; color:var(--muted);">${details}</span>
           </div>
         </div>

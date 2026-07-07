@@ -6,7 +6,6 @@ import os
 import requests
 import base64
 from dotenv import load_dotenv
-import os
 
 load_dotenv()
 
@@ -77,6 +76,17 @@ def query_vt(endpoint, method="GET", data=None, files=None):
         print(f"VirusTotal query error on {endpoint}: {e}")
         return None
 
+def parse_vt_stats(stats, default_status="Safe"):
+    malicious = stats.get("malicious", 0)
+    harmless = stats.get("harmless", 0)
+    if malicious > 0:
+        status = "Malicious"
+    elif harmless > 0:
+        status = "Safe"
+    else:
+        status = default_status
+    return status, malicious, harmless
+
 def scan_url_virustotal(url):
     url_id = base64.urlsafe_b64encode(url.encode()).decode().strip("=")
     res = query_vt(f"urls/{url_id}")
@@ -84,12 +94,7 @@ def scan_url_virustotal(url):
         query_vt("urls", method="POST", data={"url": url})
         return {"status": "Unknown URL", "malicious": 0, "harmless": 0}
     stats = res["data"]["attributes"]["last_analysis_stats"]
-    malicious = stats.get("malicious", 0)
-    harmless = stats.get("harmless", 0)
-    if malicious == 0 and harmless == 0:
-        status = "Unknown URL"
-    else:
-        status = "Malicious" if malicious > 0 else "Safe"
+    status, malicious, harmless = parse_vt_stats(stats, default_status="Unknown URL")
     return {
         "status": status,
         "malicious": malicious,
@@ -104,13 +109,14 @@ def scan_file_hash_virustotal(sha256, filename, file_size, file_bytes):
             return {"status": "Queued", "filename": filename, "size": file_size, "hash": sha256, "malicious": 0, "harmless": 0}
         return {"status": "Unknown", "filename": filename, "size": file_size, "hash": sha256, "malicious": 0, "harmless": 0}
     stats = res["data"]["attributes"]["last_analysis_stats"]
+    status, malicious, harmless = parse_vt_stats(stats, default_status="Safe")
     return {
-        "status": "Malicious" if stats.get("malicious", 0) > 0 else "Safe",
+        "status": status,
         "filename": filename,
         "size": file_size,
         "hash": sha256,
-        "malicious": stats.get("malicious", 0),
-        "harmless": stats.get("harmless", 0),
+        "malicious": malicious,
+        "harmless": harmless,
         "type_description": res["data"]["attributes"].get("type_description", "Unknown")
     }
 
@@ -119,12 +125,7 @@ def check_domain_reputation(domain):
     if not res:
         return {"status": "Unknown Domain", "domain": domain, "malicious": 0, "harmless": 0}
     stats = res["data"]["attributes"]["last_analysis_stats"]
-    malicious = stats.get("malicious", 0)
-    harmless = stats.get("harmless", 0)
-    if malicious == 0 and harmless == 0:
-        status = "Unknown Domain"
-    else:
-        status = "Malicious" if malicious > 0 else "Safe"
+    status, malicious, harmless = parse_vt_stats(stats, default_status="Unknown Domain")
     return {
         "status": status,
         "domain": domain,
@@ -132,20 +133,33 @@ def check_domain_reputation(domain):
         "harmless": harmless
     }
 
+def calculate_threat_score(phish_prob, found_keywords, unique_urls, found_spoofs, vt_results, attachment_result, sender_reputation, base_prediction):
+    threat_score = phish_prob * 65
+    threat_score += min(len(found_keywords) * 3, 20)
+    threat_score += min(len(unique_urls) * 3, 10)
+    threat_score += min(len(found_spoofs) * 5, 10)
+    
+    # VirusTotal threat indicators check
+    vt_malicious_detected = any(vt_u["status"] == "Malicious" for vt_u in vt_results)
+    
+    if attachment_result and attachment_result["status"] == "Malicious":
+        vt_malicious_detected = True
+
+    if sender_reputation and sender_reputation["status"] == "Malicious":
+        vt_malicious_detected = True
+
+    prediction = base_prediction
+    if vt_malicious_detected:
+        threat_score += 50
+        prediction = 1
+
+    threat_score = max(5, min(int(round(threat_score)), 95))
+    return threat_score, prediction
+
 @app.route("/")
 def index_page():
     return send_from_directory(BASE_DIR, "index.html")
 
-# ── FIX: Handle OPTIONS preflight requests (CORS) ──
-@app.before_request
-def handle_options():
-    if request.method == "OPTIONS":
-        from flask import Response
-        res = Response()
-        res.headers["Access-Control-Allow-Origin"] = "*"
-        res.headers["Access-Control-Allow-Methods"] = "POST, GET, OPTIONS"
-        res.headers["Access-Control-Allow-Headers"] = "Content-Type"
-        return res
 
 @app.route("/analyze", methods=["POST", "OPTIONS"])
 def analyze():
@@ -241,29 +255,16 @@ def analyze():
                 found_spoofs.append(d)
         found_spoofs = list(set(found_spoofs))
 
-        threat_score  = phish_prob_float * 65
-        threat_score += min(len(found_keywords) * 3, 20)
-        threat_score += min(len(unique_urls) * 3, 10)
-        threat_score += min(len(found_spoofs) * 5, 10)
-        
-        # VirusTotal threat indicators check
-        vt_malicious_detected = False
-        for vt_u in vt_results:
-            if vt_u["status"] == "Malicious":
-                vt_malicious_detected = True
-                break
-
-        if attachment_result and attachment_result["status"] == "Malicious":
-            vt_malicious_detected = True
-
-        if sender_reputation and sender_reputation["status"] == "Malicious":
-            vt_malicious_detected = True
-
-        if vt_malicious_detected:
-            threat_score += 50
-            prediction = 1  # Force prediction if VT reports high-confidence malicious indicators
-
-        threat_score  = max(5, min(int(round(threat_score)), 95))
+        threat_score, prediction = calculate_threat_score(
+            phish_prob=phish_prob_float,
+            found_keywords=found_keywords,
+            unique_urls=unique_urls,
+            found_spoofs=found_spoofs,
+            vt_results=vt_results,
+            attachment_result=attachment_result,
+            sender_reputation=sender_reputation,
+            base_prediction=prediction
+        )
 
         return jsonify({
             "prediction": prediction,
