@@ -11,6 +11,12 @@ load_dotenv()
 
 VT_API_KEY = os.getenv("VT_API_KEY")
 
+if not VT_API_KEY or VT_API_KEY == "YOUR_VIRUSTOTAL_API_KEY_HERE":
+    print("\n[-] WARNING: VT_API_KEY is not configured or uses placeholder value.")
+    print("    VirusTotal file/URL/domain scans will be bypassed/skipped with error details.\n")
+else:
+    print("\n[+] VT_API_KEY detected. VirusTotal scans enabled.\n")
+
 app = Flask(__name__)
 
 # ── FIX: Allow ALL origins (fixes "Failed to fetch" from Live Server) ──
@@ -61,9 +67,12 @@ def clean_text(text):
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
+def is_valid_vt_response(res):
+    return res and isinstance(res, dict) and "data" in res
+
 def query_vt(endpoint, method="GET", data=None, files=None):
-    if not VT_API_KEY:
-        return None
+    if not VT_API_KEY or VT_API_KEY == "YOUR_VIRUSTOTAL_API_KEY_HERE":
+        return {"error": "missing_api_key"}
     headers = {"x-apikey": VT_API_KEY}
     url = f"https://www.virustotal.com/api/v3/{endpoint}"
     try:
@@ -71,10 +80,16 @@ def query_vt(endpoint, method="GET", data=None, files=None):
             res = requests.post(url, headers=headers, data=data, files=files)
         else:
             res = requests.get(url, headers=headers)
-        return res.json() if res.status_code == 200 else None
+
+        if res.status_code == 200:
+            return res.json()
+        elif res.status_code in [401, 403]:
+            return {"error": "invalid_api_key"}
+        else:
+            return {"error": f"http_{res.status_code}"}
     except Exception as e:
         print(f"VirusTotal query error on {endpoint}: {e}")
-        return None
+        return {"error": "connection_error"}
 
 def parse_vt_stats(stats, default_status="Safe"):
     malicious = stats.get("malicious", 0)
@@ -90,9 +105,19 @@ def parse_vt_stats(stats, default_status="Safe"):
 def scan_url_virustotal(url):
     url_id = base64.urlsafe_b64encode(url.encode()).decode().strip("=")
     res = query_vt(f"urls/{url_id}")
-    if not res:
+
+    if not is_valid_vt_response(res):
+        if isinstance(res, dict) and res.get("error") in ["missing_api_key", "invalid_api_key"]:
+            return {
+                "status": "Skipped (API Key Error)",
+                "malicious": 0,
+                "harmless": 0,
+                "message": "VirusTotal API key is missing or invalid. Check your .env file configuration."
+            }
+
         query_vt("urls", method="POST", data={"url": url})
         return {"status": "Unknown URL", "malicious": 0, "harmless": 0}
+
     stats = res["data"]["attributes"]["last_analysis_stats"]
     status, malicious, harmless = parse_vt_stats(stats, default_status="Unknown URL")
     return {
@@ -101,29 +126,20 @@ def scan_url_virustotal(url):
         "harmless": harmless
     }
 
-def scan_file_hash_virustotal(sha256, filename, file_size, file_bytes):
-    res = query_vt(f"files/{sha256}")
-    if not res:
-        if file_size < 32 * 1024 * 1024:
-            query_vt("files", method="POST", files={"file": (filename, file_bytes)})
-            return {"status": "Queued", "filename": filename, "size": file_size, "hash": sha256, "malicious": 0, "harmless": 0}
-        return {"status": "Unknown", "filename": filename, "size": file_size, "hash": sha256, "malicious": 0, "harmless": 0}
-    stats = res["data"]["attributes"]["last_analysis_stats"]
-    status, malicious, harmless = parse_vt_stats(stats, default_status="Safe")
-    return {
-        "status": status,
-        "filename": filename,
-        "size": file_size,
-        "hash": sha256,
-        "malicious": malicious,
-        "harmless": harmless,
-        "type_description": res["data"]["attributes"].get("type_description", "Unknown")
-    }
-
 def check_domain_reputation(domain):
     res = query_vt(f"domains/{domain}")
-    if not res:
+
+    if not is_valid_vt_response(res):
+        if isinstance(res, dict) and res.get("error") in ["missing_api_key", "invalid_api_key"]:
+            return {
+                "status": "Skipped (API Key Error)",
+                "domain": domain,
+                "malicious": 0,
+                "harmless": 0,
+                "message": "VirusTotal API key is missing or invalid. Check your .env file configuration."
+            }
         return {"status": "Unknown Domain", "domain": domain, "malicious": 0, "harmless": 0}
+
     stats = res["data"]["attributes"]["last_analysis_stats"]
     status, malicious, harmless = parse_vt_stats(stats, default_status="Unknown Domain")
     return {
@@ -133,17 +149,14 @@ def check_domain_reputation(domain):
         "harmless": harmless
     }
 
-def calculate_threat_score(phish_prob, found_keywords, unique_urls, found_spoofs, vt_results, attachment_result, sender_reputation, base_prediction):
+def calculate_threat_score(phish_prob, found_keywords, unique_urls, found_spoofs, vt_results, sender_reputation, base_prediction):
     threat_score = phish_prob * 65
     threat_score += min(len(found_keywords) * 3, 20)
     threat_score += min(len(unique_urls) * 3, 10)
     threat_score += min(len(found_spoofs) * 5, 10)
-    
+
     # VirusTotal threat indicators check
     vt_malicious_detected = any(vt_u["status"] == "Malicious" for vt_u in vt_results)
-    
-    if attachment_result and attachment_result["status"] == "Malicious":
-        vt_malicious_detected = True
 
     if sender_reputation and sender_reputation["status"] == "Malicious":
         vt_malicious_detected = True
@@ -163,6 +176,16 @@ def index_page():
 
 @app.route("/analyze", methods=["POST", "OPTIONS"])
 def analyze():
+    # ── FIX: short-circuit CORS preflight requests ──
+    # Because "OPTIONS" is listed explicitly in methods above, Flask routes
+    # OPTIONS requests to this view instead of letting flask-cors auto-handle
+    # them. Without this early return, the OPTIONS request falls into the
+    # try block below (which expects a real POST body) and errors out,
+    # causing the browser to reject the preflight and block the real
+    # request with a CORS error ("Failed to fetch").
+    if request.method == "OPTIONS":
+        return "", 200
+
     if model is None or vectorizer is None:
         return jsonify({
             "error": "ML processing components not found on the server. Look at the Python console terminal trace."
@@ -172,13 +195,11 @@ def analyze():
         sender = ""
         subject = ""
         body = ""
-        attachment = None
 
         if request.content_type and "multipart/form-data" in request.content_type:
             sender = request.form.get("sender", "").strip()
             subject = request.form.get("subject", "").strip()
             body = request.form.get("body", "").strip()
-            attachment = request.files.get("attachment")
         else:
             data = request.json or {}
             sender = data.get("sender", "").strip()
@@ -196,17 +217,7 @@ def analyze():
                 domain = email_match.group(1).lower().strip()
                 sender_reputation = check_domain_reputation(domain)
 
-        # Handle attachment scan if present
-        attachment_result = None
-        if attachment and attachment.filename:
-            import hashlib
-            filename = attachment.filename
-            file_bytes = attachment.read()
-            file_size = len(file_bytes)
-            sha256_hash = hashlib.sha256(file_bytes).hexdigest()
-            attachment_result = scan_file_hash_virustotal(sha256_hash, filename, file_size, file_bytes)
-
-        if not cleaned and not attachment_result and not sender_reputation:
+        if not cleaned and not sender_reputation:
             return jsonify({
                 "prediction": 0, "threat_score": 0,
                 "phish_prob": 0, "safe_prob": 100,
@@ -230,7 +241,7 @@ def analyze():
         all_lower      = combined_raw.lower()
         found_keywords = [w for w in suspicious_keywords if w in all_lower]
         urls_found     = re.findall(r'(https?://\S+|www\.\S+)', combined_raw)
-        
+
         # Clean URLs and keep unique ones
         unique_urls = []
         for u in urls_found:
@@ -261,7 +272,6 @@ def analyze():
             unique_urls=unique_urls,
             found_spoofs=found_spoofs,
             vt_results=vt_results,
-            attachment_result=attachment_result,
             sender_reputation=sender_reputation,
             base_prediction=prediction
         )
@@ -276,7 +286,7 @@ def analyze():
             "spoofed": found_spoofs,
             "virus_total": vt_results[0] if vt_results else None,
             "virus_total_urls": vt_results,
-            "virus_total_attachment": attachment_result,
+            "virus_total_attachment": None,
             "sender_reputation": sender_reputation
         })
 

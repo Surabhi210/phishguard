@@ -247,91 +247,6 @@ header {
   box-shadow: 0 0 0 3px rgba(79,158,248,.12);
 }
 
-/* Dropzone & File Preview styles */
-.dropzone {
-  border: 2px dashed var(--border2);
-  border-radius: var(--radius);
-  background: var(--surface);
-  padding: 20px;
-  text-align: center;
-  cursor: pointer;
-  transition: border-color var(--transition), background-color var(--transition);
-}
-.dropzone:hover, .dropzone.dragover {
-  border-color: var(--blue);
-  background: rgba(79, 158, 248, 0.04);
-}
-.dropzone-inner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-.dropzone-icon {
-  font-size: 1.8rem;
-}
-.dropzone-text {
-  font-family: var(--mono);
-  font-size: .78rem;
-  color: var(--text2);
-}
-.dropzone-highlight {
-  color: var(--blue);
-  font-weight: 600;
-}
-.dropzone-sub {
-  font-family: var(--mono);
-  font-size: .62rem;
-  color: var(--muted2);
-}
-
-.file-preview {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 10px 14px;
-  margin-top: 8px;
-  animation: fadeIn var(--transition) ease;
-}
-.file-icon {
-  font-size: 1.4rem;
-  color: var(--blue);
-}
-.file-details {
-  flex: 1;
-  min-width: 0;
-}
-.file-name {
-  font-family: var(--mono);
-  font-size: .78rem;
-  font-weight: 500;
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.file-size {
-  font-family: var(--mono);
-  font-size: .68rem;
-  color: var(--muted);
-}
-.file-clear {
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-size: .9rem;
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 4px;
-  transition: all var(--transition);
-}
-.file-clear:hover {
-  color: var(--red);
-  background: var(--red-glow);
-}
 
 /* ══════════════════════════════════════
    ACTIONS
@@ -643,27 +558,7 @@ footer {
       <label>Email Body</label>
       <textarea id="body" rows="7" placeholder="Paste the full email body here…"></textarea>
     </div>
-    <div class="field">
-      <label>Attachment (optional)</label>
-      <div class="dropzone" id="dropzone">
-        <input type="file" id="attachmentInput" style="display:none;" />
-        <div class="dropzone-inner">
-          <span class="dropzone-icon">📁</span>
-          <div class="dropzone-text">
-            <span class="dropzone-highlight">Click to upload</span> or drag and drop
-          </div>
-          <div class="dropzone-sub">Max size 32MB</div>
-        </div>
-      </div>
-      <div class="file-preview" id="filePreview" style="display:none;">
-        <span class="file-icon">📄</span>
-        <div class="file-details">
-          <div class="file-name" id="fileName">file.pdf</div>
-          <div class="file-size" id="fileSize">0 KB</div>
-        </div>
-        <button class="file-clear" onclick="clearAttachment(event)" type="button">✕</button>
-      </div>
-    </div>
+
   </div>
 
   <div class="actions" style="margin-top:16px;">
@@ -702,74 +597,6 @@ const SAMPLES = {
   },
 };
 
-/* ── Attachment Drag & Drop Logic ── */
-let selectedFile = null;
-const dropzone = document.getElementById('dropzone');
-const attachmentInput = document.getElementById('attachmentInput');
-const filePreview = document.getElementById('filePreview');
-const fileName = document.getElementById('fileName');
-const fileSize = document.getElementById('fileSize');
-
-// Trigger file input click
-dropzone.addEventListener('click', () => {
-  attachmentInput.click();
-});
-
-// File input selection
-attachmentInput.addEventListener('change', (e) => {
-  if (e.target.files.length > 0) {
-    handleFile(e.target.files[0]);
-  }
-});
-
-// Drag and drop handlers
-dropzone.addEventListener('dragover', (e) => {
-  e.preventDefault();
-  dropzone.classList.add('dragover');
-});
-
-dropzone.addEventListener('dragleave', () => {
-  dropzone.classList.remove('dragover');
-});
-
-dropzone.addEventListener('drop', (e) => {
-  e.preventDefault();
-  dropzone.classList.remove('dragover');
-  if (e.dataTransfer.files.length > 0) {
-    handleFile(e.dataTransfer.files[0]);
-  }
-});
-
-function handleFile(file) {
-  if (file.size > 32 * 1024 * 1024) {
-    alert('File size exceeds the 32MB limit.');
-    return;
-  }
-  selectedFile = file;
-  fileName.textContent = file.name;
-  fileSize.textContent = formatBytes(file.size);
-  dropzone.style.display = 'none';
-  filePreview.style.display = 'flex';
-}
-
-function clearAttachment(e) {
-  if (e) {
-    e.stopPropagation();
-    e.preventDefault();
-  }
-  selectedFile = null;
-  attachmentInput.value = '';
-  dropzone.style.display = 'block';
-  filePreview.style.display = 'none';
-}
-
-function formatBytes(bytes) {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
 
 /* ── Sample loader ── */
 document.querySelectorAll('.sample-btn[data-sample]').forEach(btn => {
@@ -788,7 +615,6 @@ document.querySelectorAll('.sample-btn[data-sample]').forEach(btn => {
 /* ── Clear ── */
 function clearAll() {
   ['sender','subject','body'].forEach(id => document.getElementById(id).value = '');
-  clearAttachment();
   document.getElementById('results').style.display = 'none';
   document.getElementById('results').innerHTML = '';
   document.querySelectorAll('.sample-btn').forEach(b => b.classList.remove('active'));
@@ -867,28 +693,6 @@ function render(d) {
     urlHtml = sec('🔗 URLs Detected', `<div class="tag-cloud">${d.urls.map(u => tag(u.length > 52 ? u.slice(0,52)+'…' : u, 'tag-red')).join('')}</div>`);
   }
 
-  // Attachment
-  let attachmentHtml = '';
-  if (d.virus_total_attachment) {
-    const att = d.virus_total_attachment;
-    const details = getVtDetails(att);
-    attachmentHtml = sec('📎 Attachment Analysis', `
-      <div style="background:var(--surface2); padding:14px 18px; border-radius:8px; border:1px solid var(--border); margin-top:8px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:8px;">
-          <div>
-            <div style="font-family:var(--mono); font-size:.84rem; font-weight:600; color:var(--text);">${att.filename}</div>
-            <div style="font-family:var(--mono); font-size:.68rem; color:var(--muted);">${formatBytes(att.size)} | Hash: ${att.hash.slice(0, 16)}...</div>
-          </div>
-          <div style="display:flex; align-items:center; gap:8px;">
-            ${tag(att.status, getBadgeColor(att.status))}
-            <span style="font-family:var(--mono); font-size:.65rem; color:var(--muted);">${details}</span>
-          </div>
-        </div>
-        ${att.type_description ? `<div style="font-family:var(--mono); font-size:.72rem; color:var(--text2);">File Type: ${att.type_description}</div>` : ''}
-        ${att.message ? `<div style="font-family:var(--mono); font-size:.72rem; color:var(--amber); margin-top:4px;">ℹ️ ${att.message}</div>` : ''}
-      </div>
-    `);
-  }
 
   // Sender Reputation
   let senderHtml = '';
@@ -950,7 +754,6 @@ function render(d) {
     ${sec('🧠 Suspicious Indicators', `<div class="tag-cloud">${kwHtml}</div>`)}
     ${senderHtml}
     ${urlHtml}
-    ${attachmentHtml}
     ${spfHtml}
 
     ${sec('📝 Why this verdict?', `<div class="explain-box">${explain}</div>`)}
@@ -963,10 +766,10 @@ async function analyze() {
   const subject = document.getElementById('subject').value.trim();
   const body    = document.getElementById('body').value.trim();
 
-  if (!sender && !subject && !body && !selectedFile) {
+  if (!sender && !subject && !body) {
     document.getElementById('results').style.display = 'block';
     document.getElementById('results').innerHTML =
-      `<div class="error-card">⚠ No input detected — fill at least one field or upload an attachment.</div>`;
+      `<div class="error-card">⚠ No input detected — fill at least one field.</div>`;
     return;
   }
 
@@ -977,17 +780,13 @@ async function analyze() {
   btn.disabled = true;
 
   try {
-    const formData = new FormData();
-    formData.append('sender', sender);
-    formData.append('subject', subject);
-    formData.append('body', body);
-    if (selectedFile) {
-      formData.append('attachment', selectedFile);
-    }
-
-    const res  = await fetch('http://127.0.0.1:5000/analyze', {
+    const targetUrl = window.location.port === '5000' ? '/analyze' : 'http://127.0.0.1:5000/analyze';
+    const res  = await fetch(targetUrl, {
       method: 'POST',
-      body: formData
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ sender, subject, body })
     });
     const data = await res.json();
 
