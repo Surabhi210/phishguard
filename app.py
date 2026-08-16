@@ -94,12 +94,24 @@ def query_vt(endpoint, method="GET", data=None, files=None):
 def parse_vt_stats(stats, default_status="Safe"):
     malicious = stats.get("malicious", 0)
     harmless = stats.get("harmless", 0)
-    if malicious > 0:
+    suspicious = stats.get("suspicious", 0)
+    undetected = stats.get("undetected", 0)
+    total = malicious + harmless + suspicious + undetected
+
+    if total == 0:
+        return default_status, malicious, harmless
+
+    malicious_ratio = malicious / total
+
+    # require either a decent absolute count OR a meaningful share
+    # of vendors flagging it — one stray vendor shouldn't decide this
+    if malicious >= 3 or malicious_ratio > 0.05:
         status = "Malicious"
     elif harmless > 0:
         status = "Safe"
     else:
         status = default_status
+
     return status, malicious, harmless
 
 def scan_url_virustotal(url):
